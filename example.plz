@@ -1,0 +1,3 @@
+let apples = 5;
+let bob = 7;
+let cat = apples + bob;
