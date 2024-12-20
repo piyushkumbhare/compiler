@@ -1,24 +1,30 @@
 #![allow(unused)]
 
-use std::path::Path;
+use std::{io::Write, path::Path};
 
-use lexer::Lexer;
+use lexer::{LexToken, Lexer};
 mod lexer;
 
+mod parser;
+
 /*
-    Goals for first language:
-    
-    let a = 5;
-    let b = 2;
+	Goals for first language:
+	
+	let a = 5;
+	let b = 2;
 
-    let c = a + b;
+	let c = a + b;
 
-    print(c);
+	print(c);
 */
 
-fn main() {
-    let mut lexer = Lexer::from_path(Path::new("example.plz")).unwrap();
 
-    let tokens = lexer.lex();
-    println!("{:?}", &tokens);
+fn main() {
+	let input: String = std::fs::read("example.plz").unwrap().iter().map(|&x| char::from(x)).collect();
+
+	let mut lexer = Lexer::new(input);
+
+	for token in lexer {
+		println!("{:?}", &token);
+	}
 }

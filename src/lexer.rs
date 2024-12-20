@@ -9,16 +9,18 @@ use regex::Regex;
 pub struct Lexer {
     text: String,
     cursor: usize,
+    re: Regex,
+    capture_names: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Keyword {
     Let,
 }
 
-#[derive(Debug)]
-pub enum LexToken<'a> {
-    Id(&'a str),
+#[derive(Debug, PartialEq)]
+pub enum LexToken {
+    Id(String),
     Num(i32),
 
     Assign,
@@ -31,9 +33,14 @@ pub enum LexToken<'a> {
     Semicolon,
 
     Keyword(Keyword),
+
+    EOF,
+    
+    LPar,
+    RPar,
 }
 
-impl<'a> Lexer {
+impl Lexer {
     pub fn from_path(path: &Path) -> Result<Self, std::io::Error> {
         Ok(Self::new(
             fs::read(path)?.iter().map(|&c| char::from(c)).collect(),
@@ -41,55 +48,69 @@ impl<'a> Lexer {
     }
 
     pub fn new(input: String) -> Self {
+        let re = r#"(?P<ID>^[a-z]+[0-9]*)|(?P<NUM>^[0-9]+)|(?P<ASSIGN>^=)|(?P<ADD>^\+)|(?P<SUB>^-)|(?P<MULT>^\*)|(?P<DIV>^/)|(?P<IGNORE>^\s)|(?P<SEMICOLON>^;)|(?P<LPAR>\()|(?P<RPAR>\))"#;
+        let re = Regex::new(&re).expect("Error compiling Regex");
+
+        let capture_names: Vec<String> = re
+            .capture_names()
+            .filter_map(|x| match x {
+                Some(s) => Some(s.to_string()),
+                None => None,
+            })
+            .collect();
+
         Self {
             text: input,
             cursor: 0,
+            re,
+            capture_names,
         }
     }
+}
 
-    pub fn lex(&'a mut self) -> Vec<LexToken<'a>> {
-        let mut tokens = Vec::new();
+impl<'a> Iterator for Lexer {
+    type Item = LexToken;
 
-        let re = r#"(?P<ID>[a-z]+)|(?P<NUM>[0-9]+)|(?P<ASSIGN>=)|(?P<ADD>\+)|(?P<SUB>-)|(?P<MULT>\*)|(?P<DIV>/)|(?P<IGNORE> |\n)|(?P<SEMICOLON>\;)"#;
-        let re = Regex::new(&re).expect("Error compiling Regex");
-
-        let capture_names: Vec<_> = re.capture_names().filter_map(|x| x).collect();
-        println!("{:?}", capture_names);
-
-        while self.cursor < self.text.len() {
-            let captures = re
+    /// Returns the next token as a `Some(LexToken)`, or `None` if `EOF` is reached
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cursor < self.text.len() {
+            // Run the regex on the remaining slice
+            let captures = self
+                .re
                 .captures(&self.text[self.cursor..])
                 .expect("Lexing Error: Unknown tokens seen");
 
-            let Some(token) = (1..=9).find_map(|n| captures.get(n)) else {
-                break;
-            };
-
-            for &name in capture_names.iter() {
+            // Find out which name was matched & captured
+            for name in self.capture_names.iter() {
                 let capture = captures.name(name);
                 if capture.is_some() {
-                    let value = captures.name(name).unwrap().as_str();
+                    let value = captures.name(name).unwrap().as_str().to_string();
                     self.cursor += value.len();
-                    let token = match name {
+                    let token = match name.as_str() {
                         "ID" => LexToken::Id(value),
-                        "NUM" => LexToken::Num(value.parse().expect("Error parsing integer literal")),
-                        
+                        "NUM" => LexToken::Num(
+                            value.trim().parse().expect("Error parsing integer literal"),
+                        ),
+
                         "ASSIGN" => LexToken::Assign,
                         "ADD" => LexToken::Add,
                         "SUB" => LexToken::Sub,
                         "MULT" => LexToken::Mult,
                         "DIV" => LexToken::Div,
-                        
-                        "IGNORE" => break,
+
+                        "LPAR" => LexToken::LPar,
+                        "RPAR" => LexToken::RPar,
+
+
+                        // If we see a whitespace, ignore it and return the next Some(token)
+                        "IGNORE" => return self.next(),
                         "SEMICOLON" => LexToken::Semicolon,
-                        x => panic!("Unexpected token parsed: `{x}`")
+                        x => LexToken::EOF,
                     };
-                    println!("{:?}", token);
-                    tokens.push(token);
-                    break;
+                    return Some(token);
                 }
             }
         }
-        tokens
+        None
     }
 }
