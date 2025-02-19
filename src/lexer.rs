@@ -24,10 +24,7 @@ pub enum LexToken {
     Num(i32),
 
     Assign,
-    Add,
-    Sub,
-    Mult,
-    Div,
+    Op(String),
 
     Whitespace,
     Semicolon,
@@ -35,7 +32,7 @@ pub enum LexToken {
     Keyword(Keyword),
 
     EOF,
-    
+
     LPar,
     RPar,
 }
@@ -48,7 +45,7 @@ impl Lexer {
     }
 
     pub fn new(input: String) -> Self {
-        let re = r#"(?P<ID>^[a-z]+[0-9]*)|(?P<NUM>^[0-9]+)|(?P<ASSIGN>^=)|(?P<ADD>^\+)|(?P<SUB>^-)|(?P<MULT>^\*)|(?P<DIV>^/)|(?P<IGNORE>^\s)|(?P<SEMICOLON>^;)|(?P<LPAR>\()|(?P<RPAR>\))"#;
+        let re = r#"(?P<ID>^[a-z]+[0-9]*)|(?P<NUM>^[0-9]+)|(?P<ASSIGN>^=)|(?P<OP>^[\+\*/\-])|(?P<IGNORE>^\s)|(?P<SEMICOLON>^;)|(?P<LPAR>\()|(?P<RPAR>\))"#;
         let re = Regex::new(&re).expect("Error compiling Regex");
 
         let capture_names: Vec<String> = re
@@ -93,14 +90,10 @@ impl<'a> Iterator for Lexer {
                         ),
 
                         "ASSIGN" => LexToken::Assign,
-                        "ADD" => LexToken::Add,
-                        "SUB" => LexToken::Sub,
-                        "MULT" => LexToken::Mult,
-                        "DIV" => LexToken::Div,
+                        "OP" => LexToken::Op(value),
 
                         "LPAR" => LexToken::LPar,
                         "RPAR" => LexToken::RPar,
-
 
                         // If we see a whitespace, ignore it and return the next Some(token)
                         "IGNORE" => return self.next(),

@@ -11,47 +11,44 @@
                                 "print" <expression>;
 
     <expression>        ::=     <expression> "+" <expression>
-								| <expression> "-" <expression>
-								| <term>
+                                | <expression> "-" <expression>
+                                | <term>
 
-	<term>				::=		<term> "*" <term>
-								| <term> "/" <term>
-								| "(" <expression> ")"
-								| VAR
-								| NUM
+    <term>				::=		<term> "*" <term>
+                                | <term> "/" <term>
+                                | "(" <expression> ")"
+                                | VAR
+                                | NUM
 */
 
-/*
-	Simplified Grammar:
-
-    <program>			::=		<statement_list>
-
-    <statement_list>	::=		<statement> <statement_list>
-                                | eps
-
-    <statement>			::= 	"let" <variable> "=" <expression> ";"
-                                | <variable> "=" <expression> ";"
-                                "print" <expression> ";"
-
-    <expression>        ::=     <term> <expression'>								
-
-	<expression'>		::=		"+" <expression>
-								| "-" <expression>
-								| eps
-
-	<term>				::=		"(" <expression> ")" <term'>
-								| VAR <term'>
-								| NUM <term'>
-
-	<term'>				::=		"*" <term>
-								| "/" <term>
-								| eps
-
-	*/
+// Simplified Grammar:
+//
+// <program>			::=		<statement_list>
+//
+// <statement_list>	::=		<statement> <statement_list>
+//                             | eps
+//
+// <statement>			::= 	"let" <variable> "=" <expression> ";"
+//                             | <variable> "=" <expression> ";"
+//                             "print" <expression> ";"
+//
+// <expression>        ::=     <term> <expression'>
+//
+// <expression'>		::=		"+" <expression>
+//                             | "-" <expression>
+//                             | eps
+//
+// <term>				::=		"(" <expression> ")" <term'>
+//                             | VAR <term'>
+//                             | NUM <term'>
+//
+// <term'>				::=		"*" <term>
+//                             | "/" <term>
+//                             | eps
 
 use std::{collections::HashMap, iter::Peekable};
 
-use crate::lexer::Lexer;
+use crate::lexer::{LexToken, Lexer};
 
 pub struct Parser {
     lexer: Peekable<Lexer>,
@@ -59,69 +56,114 @@ pub struct Parser {
 
 pub struct ParseError;
 
-pub struct Program<'a> {
-    statement_list: Vec<Statement<'a>>,
+pub struct Program {
+    statement_list: Vec<Statement>,
 }
 
-pub enum Statement<'a> {
-	Let(String, Expression<'a>),
-	Assign(String, Expression<'a>),
-	Print(Term<'a>),
+pub enum Statement {
+    Let(String, Box<Expression>),
+    Assign(String, Expression),
+    Print(Term),
 }
 
-pub enum Expression<'a> {
-	Add(&'a Expression<'a>, &'a Expression<'a>),
-	Sub(&'a Expression<'a>, &'a Expression<'a>),
-	Term(Term<'a>)
+pub enum Expression {
+    Add(Box<Expression>, Box<Expression>),
+    Sub(Box<Expression>, Box<Expression>),
+    Term(Term),
 }
 
-pub enum Term<'a> {
-	Mult(&'a Term<'a>, &'a Term<'a>),
-	Div(&'a Term<'a>, &'a Term<'a>),
-	Parenthesis(&'a Expression<'a>),
-	Num(i32),
+pub enum Term {
+    Mult(Box<Term>, Box<Term>),
+    Div(Box<Term>, Box<Term>),
+    Parenthesis(Box<Expression>),
+    Num(i32),
+    Id(String),
 }
 
 impl Parser {
-	pub fn new(input: String) -> Self {
-		Self {
-			lexer: Lexer::new(input).peekable(),
-		}
-	}
+    pub fn new(input: String) -> Self {
+        Self {
+            lexer: Lexer::new(input).peekable(),
+        }
+    }
 
-	/// Parses the input and returns a `Program` struct representing its AST
-    pub fn parse<'a>(mut self) -> Result<Program<'a>, ParseError> {
-		todo!()
-	}
+    /// Parses the input and returns a `Program` struct representing its AST
+    pub fn parse(mut self) -> Result<Program, ParseError> {
+        todo!()
+    }
 
-	fn parse_statement<'a>(&mut self) -> Result<Statement<'a>, ParseError> {
-		todo!()
-	}
+    fn parse_statement(&mut self) -> Result<Statement, ParseError> {
+        todo!()
+    }
 
-	fn parse_expression<'a>(&mut self) -> Result<Expression<'a>, ParseError> {
-		todo!()
-	}
+    fn parse_expression(&mut self) -> Result<Expression, ParseError> {
+        todo!()
+    }
 
-	fn parse_term<'a>(&mut self) -> Result<Term<'a>, ParseError> {
-		let Some(token) = self.lexer.next() else {
-			return Err(ParseError);
-		};
+    fn parse_expression_prime(&mut self) -> Result<Expression, ParseError> {
+        todo!()
+    }
 
-		use crate::LexToken::*;
-		match token {
-			Id(s) => todo!(),
-			Num(i) => todo!(),
-			LPar => {
-				let expr = self.parse_expression()?;
-				let Some(next) = self.lexer.next() else {
-					return Err(ParseError);
-				};
-				if next != RPar {
-					return Err(ParseError);
+    // <term>				::=		"(" <expression> ")" <term'>
+    //                             | VAR <term'>
+    //                             | NUM <term'>
+    // First: LPAR | VAR | NUM
+    // Follow: SEMI | ADD | SUB | RPAR
+    fn parse_term(&mut self) -> Result<Term, ParseError> {
+        let Some(token) = self.lexer.next() else {
+            return Err(ParseError);
+        };
+
+        let token = match token {
+            LexToken::Id(var) => Ok(Term::Id(var)),
+            LexToken::Num(i) => Ok(Term::Num(i)),
+            LexToken::LPar => {
+                let expr = self.parse_expression()?;
+                let Some(next) = self.lexer.next() else {
+                    return Err(ParseError);
+                };
+                if next != LexToken::RPar {
+                    return Err(ParseError);
+                }
+                Ok(Term::Parenthesis(Box::new(expr)))
+            }
+            _ => Err(ParseError),
+        };
+
+        let next = self.parse_term_prime()?;
+        todo!()
+    }
+
+    // <term'>				::=		"*" <term>
+    //                             | "/" <term>
+    //                             | eps
+    // First: MUL | DIV
+    // Follow: SEMI | ADD | SUB | RPAR
+    fn parse_term_prime(&mut self) -> Result<Option<(LexToken, Term)>, ParseError> {
+        let Some(peek) = self.lexer.peek() else {
+            return Err(ParseError);
+        };
+
+        // Peek token in case epsilon path is taken
+        match peek {
+            LexToken::Op(op) => {
+				self.lexer.next();
+                match op.as_str() {
+					"*" => Ok(Some(()))
 				}
-				Ok(Term::Parenthesis(expr))
-			},
-			_ => Err(ParseError),
-		}
-	}
+                Ok(Some((op, self.parse_term()?)))
+            }
+            _ => {
+                let Some(peek) = self.lexer.peek() else {
+                    return Err(ParseError);
+                };
+                match peek {
+                    LexToken::Semicolon | LexToken::Add | LexToken::Sub | LexToken::RPar => {
+                        Ok(None)
+                    }
+                    _ => return Err(ParseError),
+                }
+            }
+        }
+    }
 }
